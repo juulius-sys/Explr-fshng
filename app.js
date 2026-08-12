@@ -1281,7 +1281,11 @@ authSubmitBtn.addEventListener("click", async () => {
       // Stashed for ensureProfile() — signUp usually has no session yet (email confirmation
       // pending), and RLS requires a real session before a profile row can be inserted.
       pendingDisplayName = displayNameInput.value.trim() || email.split("@")[0];
-      const { data, error } = await supabaseClient.auth.signUp({ email, password });
+      const { data, error } = await supabaseClient.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: window.location.href },
+      });
       if (error) throw error;
       authHint.textContent = data.session ? "" : "Check your email to confirm your account, then log in.";
     } else {
