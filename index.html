@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Explr Fshng</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">Explr Fshng</span>
+      <span class="brand-sub">Explore · Protect · Share · Repeat</span>
+    </div>
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="plan">Plan a Trip</button>
+      <button class="tab-btn" data-tab="trips">My Trips <span id="tripCount" class="count-badge">0</span></button>
+      <button class="tab-btn" data-tab="account">Account</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- PLAN TAB -->
+    <section id="tab-plan" class="tab-panel active">
+      <div class="card form-card">
+        <h2>Where and when are you fishing?</h2>
+
+        <label for="locationInput">Jump the map to an area (optional)</label>
+        <div class="row">
+          <input id="locationInput" type="text" placeholder="e.g. Tartu, Peipsi rand, Emajõgi..." autocomplete="off" />
+          <button id="searchBtn" class="btn">Search</button>
+          <button id="geoBtn" class="btn btn-secondary" title="Use my current location">📍 Use my location</button>
+        </div>
+        <ul id="locationResults" class="location-results"></ul>
+
+        <label>Pick the exact spot on the map</label>
+        <div id="mapPicker"></div>
+        <p class="hint">Click the map to drop a pin, or drag the pin to fine-tune. Search above just helps you get to the right area — the pin is what counts.</p>
+        <div id="selectedLocation" class="selected-location" hidden></div>
+
+        <label for="methodSelect">How are you fishing?</label>
+        <select id="methodSelect">
+          <option value="shore">Shore</option>
+          <option value="wading">Wading</option>
+          <option value="kayak">Kayak</option>
+          <option value="boat">Boat</option>
+        </select>
+        <div id="boatLaunchTools" hidden>
+          <button id="findLaunchesBtn" type="button" class="btn btn-secondary">⚓ Find boat launches in this map view</button>
+          <p id="launchHint" class="hint"></p>
+        </div>
+
+        <label for="speciesSelect">Target species</label>
+        <select id="speciesSelect">
+          <option value="pike">Pike (Haug)</option>
+          <option value="perch">Perch (Ahven)</option>
+          <option value="zander">Zander / Pikeperch (Koha)</option>
+          <option value="trout">Trout (Forell)</option>
+          <option value="salmon">Salmon (Lõhe)</option>
+          <option value="other">Other / not sure</option>
+        </select>
+
+        <div id="suggestedSpots"></div>
+
+        <label>When are you free?</label>
+        <div class="mode-toggle">
+          <button type="button" class="mode-btn active" data-mode="date">Specific date</button>
+          <button type="button" class="mode-btn" data-mode="range">Best day this week</button>
+        </div>
+        <input id="dateInput" type="date" />
+        <select id="daysSelect" hidden>
+          <option value="3">Next 3 days</option>
+          <option value="5" selected>Next 5 days</option>
+          <option value="7">Next 7 days</option>
+        </select>
+        <p id="forecastNote" class="hint" hidden></p>
+
+        <button id="findBtn" class="btn btn-primary" disabled>Find my best window</button>
+        <p id="planHint" class="hint">Pick a location first.</p>
+      </div>
+
+      <div id="resultsArea" class="results-area" hidden>
+        <div class="card recommendation-card">
+          <h2 id="topWindowHeading">Best window</h2>
+          <div id="topWindow"></div>
+          <label id="shareWithCrewRow" class="checkbox-row" hidden>
+            <input type="checkbox" id="shareWithCrewCheck" />
+            Share this plan with my crew
+          </label>
+          <div id="respondByRow" hidden>
+            <label for="respondByInput">Ask buddies to respond by (optional)</label>
+            <input id="respondByInput" type="date" />
+          </div>
+          <button id="saveTripBtn" class="btn btn-primary">Save this plan to My Trips</button>
+        </div>
+        <div class="card">
+          <h3 id="otherWindowsHeading">Other good windows</h3>
+          <div id="otherWindows" class="other-windows"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TRIPS TAB -->
+    <section id="tab-trips" class="tab-panel">
+      <div class="card stats-card" id="statsCard"></div>
+      <div id="tripsList" class="trips-list"></div>
+      <p id="tripsEmpty" class="hint" hidden>No trips yet. Plan one to get started.</p>
+    </section>
+
+    <!-- ACCOUNT TAB -->
+    <section id="tab-account" class="tab-panel">
+      <div id="loggedOutView" class="card">
+        <h2 id="authFormTitle">Log in</h2>
+        <div id="displayNameField" hidden>
+          <label for="displayNameInput">Display name (shown to your crew)</label>
+          <input id="displayNameInput" type="text" placeholder="e.g. Andris" autocomplete="name" />
+        </div>
+        <label for="emailInput">Email</label>
+        <input id="emailInput" type="email" autocomplete="email" />
+        <label for="passwordInput">Password</label>
+        <input id="passwordInput" type="password" autocomplete="current-password" />
+        <button id="authSubmitBtn" class="btn btn-primary">Log in</button>
+        <p id="authHint" class="hint"></p>
+        <button id="authToggleBtn" type="button" class="btn-link">Need an account? Sign up</button>
+      </div>
+
+      <div id="loggedInView" class="card" hidden>
+        <h2>Signed in</h2>
+        <p id="accountEmail" class="hint"></p>
+        <button id="logoutBtn" class="btn btn-secondary">Log out</button>
+      </div>
+
+      <div id="crewSection" class="card" hidden>
+        <h2>My Crew</h2>
+        <div id="noCrewView">
+          <p class="hint">Create a crew and share the invite code with your fishing buddies, or join one they've already made.</p>
+          <label for="crewNameInput">Crew name</label>
+          <div class="row">
+            <input id="crewNameInput" type="text" placeholder="e.g. Tartu Anglers" />
+            <button id="createCrewBtn" class="btn">Create</button>
+          </div>
+          <label for="joinCodeInput">Have an invite code?</label>
+          <div class="row">
+            <input id="joinCodeInput" type="text" placeholder="e.g. A1B2C3" autocomplete="off" />
+            <button id="joinCrewBtn" class="btn">Join</button>
+          </div>
+          <p id="crewHint" class="hint"></p>
+        </div>
+        <div id="hasCrewView" hidden>
+          <p><strong id="crewNameDisplay"></strong></p>
+          <p class="hint">Invite code: <strong id="crewInviteCode"></strong> — share this with your buddies so they can join.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <template id="tripCardTemplate">
+    <div class="card trip-card">
+      <div class="trip-card-head">
+        <div>
+          <strong class="trip-location"></strong>
+          <span class="trip-species"></span>
+          <span class="trip-method"></span>
+          <span class="trip-owner"></span>
+        </div>
+        <span class="status-badge"></span>
+      </div>
+      <div class="trip-window"></div>
+      <div class="trip-explanation"></div>
+      <div class="trip-actions">
+        <button class="btn log-btn">Log result</button>
+        <button class="btn btn-secondary details-btn">Trip details</button>
+        <button class="btn btn-danger delete-btn">Delete</button>
+      </div>
+      <div class="log-form" hidden></div>
+      <div class="log-summary" hidden></div>
+      <div class="trip-details" hidden></div>
+    </div>
+  </template>
+
+  <template id="tripDetailsTemplate">
+    <div class="details-section rsvp-section" hidden>
+      <h4>Who's in?</h4>
+      <p class="rsvp-deadline hint"></p>
+      <div class="rsvp-tally"></div>
+      <div class="rsvp-buttons">
+        <button type="button" class="btn rsvp-btn" data-response="accept">✅ I'm in</button>
+        <button type="button" class="btn rsvp-btn" data-response="maybe">❔ 50-50</button>
+        <button type="button" class="btn rsvp-btn" data-response="decline">❌ Can't make it</button>
+      </div>
+    </div>
+
+    <div class="details-section">
+      <h4>Shopping list</h4>
+      <ul class="shopping-list"></ul>
+      <div class="row">
+        <input type="text" class="shopping-input" placeholder="e.g. bait, sunscreen..." />
+        <button type="button" class="btn shopping-add-btn">Add</button>
+      </div>
+    </div>
+
+    <div class="details-section">
+      <h4>Cost split</h4>
+      <ul class="expense-list"></ul>
+      <div class="row2">
+        <input type="text" class="expense-label" placeholder="e.g. boat rental" />
+        <input type="text" class="expense-amount" placeholder="amount €" />
+        <button type="button" class="btn expense-add-btn">Add</button>
+      </div>
+      <p class="expense-summary hint"></p>
+    </div>
+  </template>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="supabase-config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
