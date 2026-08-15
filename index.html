@@ -36,8 +36,32 @@
 
         <label>Pick the exact spot on the map</label>
         <div id="mapPicker"></div>
-        <p class="hint">Click the map to drop a pin, or drag the pin to fine-tune. Search above just helps you get to the right area — the pin is what counts.</p>
+        <p id="mapHint" class="hint">Click the map to drop a pin, or drag the pin to fine-tune. Search above just helps you get to the right area — the pin is what counts.</p>
         <div id="selectedLocation" class="selected-location" hidden></div>
+
+        <div class="row" style="margin-top: 8px;">
+          <button id="pinModeBtn" type="button" class="btn btn-secondary">📌 Add a pin (spot, launch, closed road, bait shop...)</button>
+        </div>
+        <div id="pinForm" class="card pin-form" hidden>
+          <label for="pinCategorySelect">Pin type</label>
+          <select id="pinCategorySelect">
+            <option value="fishing_spot">🎣 Fishing spot</option>
+            <option value="boat_launch">🛥️ Boat launch / slip</option>
+            <option value="closed_road">🚧 Closed road</option>
+            <option value="bait_shop">🏪 Bait shop</option>
+            <option value="hazard">⚠️ Hazard</option>
+            <option value="other">📍 Other</option>
+          </select>
+          <label for="pinLabelInput">Label</label>
+          <input id="pinLabelInput" type="text" placeholder="e.g. Good spot under the bridge" />
+          <label for="pinNotesInput">Notes (optional)</label>
+          <textarea id="pinNotesInput" placeholder="Any details worth knowing..."></textarea>
+          <div class="row">
+            <button id="savePinBtn" class="btn btn-primary">Save pin</button>
+            <button id="cancelPinBtn" type="button" class="btn">Cancel</button>
+          </div>
+          <p id="pinFormHint" class="hint"></p>
+        </div>
 
         <label for="methodSelect">How are you fishing?</label>
         <select id="methodSelect">
@@ -98,6 +122,7 @@
           <h3 id="otherWindowsHeading">Other good windows</h3>
           <div id="otherWindows" class="other-windows"></div>
         </div>
+        <div id="tackleCard" class="card"></div>
       </div>
     </section>
 

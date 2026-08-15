@@ -164,6 +164,77 @@ input[type="text"], select {
   margin-top: 8px;
 }
 
+.pin-form {
+  margin-top: 10px;
+}
+
+.pin-form textarea {
+  width: 100%;
+  min-height: 50px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  resize: vertical;
+  margin-top: 6px;
+}
+
+#pinModeBtn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #08150e;
+  font-weight: 600;
+}
+
+.pin-marker {
+  font-size: 20px;
+  line-height: 22px;
+  text-align: center;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.85)) drop-shadow(0 0 2px rgba(0, 0, 0, 0.85));
+}
+
+.pin-popup {
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.pin-popup .pin-popup-meta {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.pin-popup button {
+  margin-top: 6px;
+  background: none;
+  border: none;
+  color: var(--danger);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.tackle-block {
+  margin-bottom: 10px;
+}
+
+.tackle-block ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 13.5px;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+.tackle-tip {
+  margin-top: 8px;
+  font-size: 13.5px;
+  color: var(--accent-2);
+}
+
 .trip-details {
   margin-top: 14px;
   padding-top: 14px;

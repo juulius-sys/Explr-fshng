@@ -29,6 +29,72 @@ const METHOD_ADJUSTMENTS = {
   boat: { idealMaxDelta: 6, penaltyMultiplier: 0.8, safetyLimit: 32 },
 };
 
+// Researched tackle recommendations (not a live forum search — curated from
+// fishing guides/forums, refreshed occasionally by hand). Color tip is
+// derived from the actual computed conditions for the picked window, not
+// hardcoded, so it's not purely static.
+const TACKLE_RECOMMENDATIONS = {
+  pike: {
+    lures: [
+      "Spinnerbaits (white/chartreuse, willow or Colorado blades) around weed edges and submerged wood",
+      "Rapala Husky Jerk / X-Rap jerkbaits",
+      "Large soft plastic shads on a jig head",
+      "Red-and-white spoons (classic Daredevil-style)",
+      "Inline spinners (Mepps Aglia) for shallow water/rivers",
+    ],
+    tip: "Pike ambush from cover — work spinnerbaits and jerkbaits right along weed lines and fallen timber rather than open water.",
+    source: "https://www.wired2fish.com/musky-pike/best-pike-lures",
+  },
+  zander: {
+    lures: [
+      "Soft plastic / finesse shads on a light jig head",
+      "Drop-shot rigged finesse lures",
+      "Rubber shads — cheap and effective",
+      "Slow-sinking jerkbaits at dusk/night",
+    ],
+    tip: "Keep the retrieve slow and close to the bottom — zander feed by ambush in low light, not by chasing fast-moving lures.",
+    source: "https://rodmaps.com/en/2025-pike-perch-finesse-lure/",
+  },
+  perch: {
+    lures: ["Small soft plastics (2-3\") on light jig heads", "Small spinners (Mepps-style)", "Drop-shot rigs", "Worms/maggots on light float tackle"],
+    tip: "Perch hunt in packs — once you find one, stay put and keep casting the same spot instead of moving on.",
+    source: "https://www.thelureforum.com/threads/best-colours-for-perch-pike-and-zander.27980/",
+  },
+  trout: {
+    lures: ["Rapala Countdown / X-Rap minnows", "Small spinners", "Garden worms or red wigglers on light tackle", "Nymph or egg flies if fly fishing"],
+    tip: "Present naturally with the current — trout key on drift and hesitate at anything that looks unnatural.",
+    source: "https://www.wired2fish.com/trout/best-trout-lures",
+  },
+  salmon: {
+    lures: ["Spoons (hammered green/gold or blue/silver finishes)", "Spawn bags / trout beads", "Egg flies or nymphs", "Plastic worms"],
+    tip: "Match spoon size to water clarity — smaller and duller in clear water, bigger and flashier when it's coloured.",
+    source: "https://troutandsteelhead.net/salmon-lures/",
+  },
+  other: {
+    lures: ["Soft plastics in natural colors", "Small spinners", "Live or cut bait on a simple rig"],
+    tip: "When in doubt, downsize your presentation and slow down your retrieve.",
+    source: null,
+  },
+};
+
+function tackleColorTip(reasons) {
+  const lowLight = reasons.some((r) => /Dawn|Dusk|Night hours|Cloud cover/.test(r));
+  return lowLight
+    ? "Conditions favor low light — go bright/high-contrast (chartreuse, white, orange) so fish can find it."
+    : "Bright, clear conditions — go natural and translucent (silver, brown, green) so it doesn't look out of place.";
+}
+
+// ---------- map pins ----------
+const PIN_CATEGORIES = {
+  fishing_spot: { label: "Fishing spot", icon: "🎣" },
+  boat_launch: { label: "Boat launch / slip", icon: "🛥️" },
+  closed_road: { label: "Closed road", icon: "🚧" },
+  bait_shop: { label: "Bait shop", icon: "🏪" },
+  hazard: { label: "Hazard", icon: "⚠️" },
+  other: { label: "Other", icon: "📍" },
+};
+const PIN_STORAGE_KEY = "explr_pins_v1";
+
 // Researched, real Estonian fishing spots (not a live search — a small curated
 // set compiled from public fishing guides, refreshed occasionally by hand).
 // Coordinates are general area centers, not exact honey-holes.
@@ -326,6 +392,7 @@ const topWindowHeadingEl = document.getElementById("topWindowHeading");
 const otherWindowsHeadingEl = document.getElementById("otherWindowsHeading");
 const topWindowEl = document.getElementById("topWindow");
 const otherWindowsEl = document.getElementById("otherWindows");
+const tackleCard = document.getElementById("tackleCard");
 const respondByRow = document.getElementById("respondByRow");
 const respondByInput = document.getElementById("respondByInput");
 const saveTripBtn = document.getElementById("saveTripBtn");
@@ -365,6 +432,10 @@ function initMap() {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
   }).addTo(leafletMap);
   leafletMap.on("click", (e) => {
+    if (pinMode) {
+      startPinAt(e.latlng.lat, e.latlng.lng);
+      return;
+    }
     placeMarker(e.latlng.lat, e.latlng.lng);
     setSelectedLocation({ name: "Pinned location", lat: e.latlng.lat, lon: e.latlng.lng });
   });
@@ -382,6 +453,166 @@ function placeMarker(lat, lon) {
     });
   }
 }
+
+// ---------- community pins (fishing spots, boat launches, closed roads, bait shops...) ----------
+const pinModeBtn = document.getElementById("pinModeBtn");
+const pinForm = document.getElementById("pinForm");
+const pinCategorySelect = document.getElementById("pinCategorySelect");
+const pinLabelInput = document.getElementById("pinLabelInput");
+const pinNotesInput = document.getElementById("pinNotesInput");
+const savePinBtn = document.getElementById("savePinBtn");
+const cancelPinBtn = document.getElementById("cancelPinBtn");
+const pinFormHint = document.getElementById("pinFormHint");
+const mapHintEl = document.getElementById("mapHint");
+
+let pinMode = false;
+let pendingPinLatLng = null;
+let pinsLayer = L.layerGroup().addTo(leafletMap);
+
+pinModeBtn.addEventListener("click", () => {
+  pinMode = !pinMode;
+  pinModeBtn.classList.toggle("active", pinMode);
+  mapHintEl.textContent = pinMode
+    ? "Pin mode is on — click the map where you want to drop a pin."
+    : "Click the map to drop a pin, or drag the pin to fine-tune. Search above just helps you get to the right area — the pin is what counts.";
+  if (!pinMode) pinForm.hidden = true;
+});
+
+function startPinAt(lat, lon) {
+  pendingPinLatLng = { lat, lon };
+  pinForm.hidden = false;
+  pinLabelInput.value = "";
+  pinNotesInput.value = "";
+  pinFormHint.textContent = "";
+}
+
+cancelPinBtn.addEventListener("click", () => {
+  pinForm.hidden = true;
+  pendingPinLatLng = null;
+});
+
+savePinBtn.addEventListener("click", async () => {
+  const label = pinLabelInput.value.trim();
+  if (!label || !pendingPinLatLng) {
+    pinFormHint.textContent = "Give the pin a label first.";
+    return;
+  }
+  savePinBtn.disabled = true;
+  const pin = {
+    category: pinCategorySelect.value,
+    label,
+    notes: pinNotesInput.value.trim(),
+    lat: pendingPinLatLng.lat,
+    lon: pendingPinLatLng.lon,
+  };
+  const errorMessage = await persistNewPin(pin);
+  savePinBtn.disabled = false;
+  if (errorMessage) {
+    pinFormHint.textContent = `Couldn't save: ${errorMessage}`;
+    return;
+  }
+  pinForm.hidden = true;
+  pendingPinLatLng = null;
+  pinMode = false;
+  pinModeBtn.classList.remove("active");
+  mapHintEl.textContent = "Click the map to drop a pin, or drag the pin to fine-tune. Search above just helps you get to the right area — the pin is what counts.";
+  await loadAndRenderPins();
+});
+
+function loadLocalPins() {
+  try {
+    return JSON.parse(localStorage.getItem(PIN_STORAGE_KEY)) || [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalPins(pins) {
+  localStorage.setItem(PIN_STORAGE_KEY, JSON.stringify(pins));
+}
+
+async function persistNewPin(pin) {
+  if (currentUser && currentCrew) {
+    const { error } = await supabaseClient.from("map_pins").insert({
+      crew_id: currentCrew.id,
+      created_by: currentUser.id,
+      category: pin.category,
+      label: pin.label,
+      notes: pin.notes || null,
+      lat: pin.lat,
+      lon: pin.lon,
+    });
+    return error ? error.message : null;
+  }
+  const pins = loadLocalPins();
+  pins.push({ ...pin, id: `pin_${Date.now()}`, createdAt: new Date().toISOString() });
+  saveLocalPins(pins);
+  return null;
+}
+
+async function fetchRemotePins() {
+  if (!currentCrew) return [];
+  const { data, error } = await supabaseClient.from("map_pins").select("*").eq("crew_id", currentCrew.id);
+  if (error) {
+    console.error("fetchRemotePins", error);
+    return [];
+  }
+  const rows = data || [];
+  const creatorIds = [...new Set(rows.map((r) => r.created_by))];
+  let namesById = {};
+  if (creatorIds.length) {
+    const { data: profs } = await supabaseClient.from("profiles").select("id, display_name").in("id", creatorIds);
+    (profs || []).forEach((p) => {
+      namesById[p.id] = p.display_name;
+    });
+  }
+  return rows.map((row) => ({
+    id: row.id,
+    category: row.category,
+    label: row.label,
+    notes: row.notes,
+    lat: row.lat,
+    lon: row.lon,
+    createdAt: row.created_at,
+    isMine: row.created_by === currentUser.id,
+    createdByName: namesById[row.created_by],
+  }));
+}
+
+async function deletePin(pinId) {
+  if (currentUser && currentCrew) {
+    await supabaseClient.from("map_pins").delete().eq("id", pinId);
+  } else {
+    saveLocalPins(loadLocalPins().filter((p) => p.id !== pinId));
+  }
+  await loadAndRenderPins();
+}
+
+async function loadAndRenderPins() {
+  pinsLayer.clearLayers();
+  const pins = currentUser ? await fetchRemotePins() : loadLocalPins();
+  for (const pin of pins) {
+    const cat = PIN_CATEGORIES[pin.category] || PIN_CATEGORIES.other;
+    const icon = L.divIcon({ className: "pin-marker", html: cat.icon, iconSize: [22, 22] });
+    const marker = L.marker([pin.lat, pin.lon], { icon }).addTo(pinsLayer);
+    const mine = pin.isMine !== false;
+    const byLine = pin.createdByName ? `Added by ${escapeHtml(pin.createdByName)}` : "Added by you";
+    marker.bindPopup(`
+      <div class="pin-popup">
+        <strong>${cat.icon} ${escapeHtml(pin.label)}</strong><br>
+        ${cat.label}
+        ${pin.notes ? `<br>${escapeHtml(pin.notes)}` : ""}
+        <div class="pin-popup-meta">${byLine}</div>
+        ${mine ? `<button type="button" class="pin-delete-btn" data-id="${pin.id}">Remove</button>` : ""}
+      </div>
+    `);
+    marker.on("popupopen", () => {
+      const btn = document.querySelector(`.pin-delete-btn[data-id="${pin.id}"]`);
+      if (btn) btn.addEventListener("click", () => deletePin(pin.id));
+    });
+  }
+}
+loadAndRenderPins();
 
 // ---------- boat launches (OpenStreetMap Overpass, no key needed) ----------
 let launchLayer = null;
@@ -609,7 +840,22 @@ function renderRecommendation(rec) {
     )
     .join("");
 
+  renderTackle(species, top.reasons);
+
   resultsArea.hidden = false;
+}
+
+function renderTackle(species, reasons) {
+  const rec = TACKLE_RECOMMENDATIONS[species];
+  tackleCard.innerHTML = `
+    <h3>Tackle for ${SPECIES_PROFILES[species].label}</h3>
+    <div class="tackle-block">
+      <ul>${rec.lures.map((l) => `<li>${escapeHtml(l)}</li>`).join("")}</ul>
+    </div>
+    <p class="hint">${escapeHtml(rec.tip)}</p>
+    <p class="tackle-tip">${escapeHtml(tackleColorTip(reasons))}</p>
+    ${rec.source ? `<a class="spot-source" href="${rec.source}" target="_blank" rel="noopener">source</a>` : ""}
+  `;
 }
 
 saveTripBtn.addEventListener("click", async () => {
@@ -1400,7 +1646,8 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
   updateAuthUI();
   ensureProfile()
     .then(refreshCrew)
-    .then(() => renderTrips());
+    .then(() => renderTrips())
+    .then(() => loadAndRenderPins());
 });
 
 // ---------- tabs ----------
