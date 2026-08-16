@@ -100,6 +100,8 @@ const PIN_STORAGE_KEY = "explr_pins_v1";
 // so this is a starting point, not a substitute for checking the source
 // yourself before fishing — always shown with a link and a clear caveat.
 const REGULATIONS_SOURCE = "https://keskkonnaamet.ee/en/wildlife-nature-protection/fishing/closed-periods-and-locations-fishing-minimum-sizes";
+// Re-verified automatically on the 1st of each month against the source above.
+const REGULATIONS_LAST_CHECKED = "2026-08-16";
 const REGULATIONS = {
   pike: {
     minSize: "50 cm",
@@ -773,6 +775,12 @@ renderSuggestedSpots();
 
 const regulationsCard = document.getElementById("regulationsCard");
 
+function formatDateNice(dateStr) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${d} ${months[m - 1]} ${y}`;
+}
+
 function renderRegulations() {
   const species = speciesSelect.value;
   const reg = REGULATIONS[species];
@@ -782,7 +790,10 @@ function renderRegulations() {
     ${reg.minSize ? `<div class="reg-row"><span class="reg-label">Minimum size</span><strong>${escapeHtml(reg.minSize)}</strong></div>` : ""}
     ${reg.dailyLimit ? `<div class="reg-row"><span class="reg-label">Daily limit</span><strong>${escapeHtml(reg.dailyLimit)}</strong></div>` : ""}
     <div class="reg-row"><span class="reg-label">Closed season</span><strong>${escapeHtml(reg.closedSeason)}</strong></div>
-    <p class="reg-caveat">Rules vary by water body and change over time — this is a starting point, not legal advice. Always check <a href="${REGULATIONS_SOURCE}" target="_blank" rel="noopener">Keskkonnaamet</a> and buy your fishing card at <a href="https://kalaluba.ee" target="_blank" rel="noopener">kalaluba.ee</a> before heading out.</p>
+    <p class="hint">Rules last checked: ${formatDateNice(REGULATIONS_LAST_CHECKED)} · rechecked automatically on the 1st of each month.</p>
+    <p class="reg-caveat">Water body and seasonal exceptions apply — this is a starting point, not legal advice.</p>
+    <a class="btn btn-secondary reg-official-link" href="${REGULATIONS_SOURCE}" target="_blank" rel="noopener">📖 Check official rules for your exact spot on Keskkonnaamet →</a>
+    <a class="btn btn-secondary reg-official-link" href="https://kalaluba.ee" target="_blank" rel="noopener">🎫 Buy your fishing card at kalaluba.ee →</a>
   `;
 }
 

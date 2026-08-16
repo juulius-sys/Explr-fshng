@@ -191,9 +191,16 @@ input[type="text"], select {
 }
 
 .reg-caveat {
-  margin-top: 10px;
+  margin-top: 4px;
   font-size: 12.5px;
   color: var(--warn);
+}
+
+.reg-official-link {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  margin-top: 8px;
 }
 
 .pin-form {
