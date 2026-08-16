@@ -164,6 +164,38 @@ input[type="text"], select {
   margin-top: 8px;
 }
 
+.regulations-card {
+  margin-top: 14px;
+  background: var(--panel-2);
+}
+
+.regulations-card h3 {
+  margin-bottom: 8px;
+}
+
+.reg-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+  font-size: 13.5px;
+}
+
+.reg-row:first-of-type {
+  border-top: none;
+}
+
+.reg-label {
+  color: var(--text-dim);
+}
+
+.reg-caveat {
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: var(--warn);
+}
+
 .pin-form {
   margin-top: 10px;
 }

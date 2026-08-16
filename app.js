@@ -95,6 +95,44 @@ const PIN_CATEGORIES = {
 };
 const PIN_STORAGE_KEY = "explr_pins_v1";
 
+// Estonian fishing regulations — researched from the Estonian Environmental
+// Board (Keskkonnaamet), the official source. Rules are complex and change,
+// so this is a starting point, not a substitute for checking the source
+// yourself before fishing — always shown with a link and a clear caveat.
+const REGULATIONS_SOURCE = "https://keskkonnaamet.ee/en/wildlife-nature-protection/fishing/closed-periods-and-locations-fishing-minimum-sizes";
+const REGULATIONS = {
+  pike: {
+    minSize: "50 cm",
+    dailyLimit: "5 fish/day",
+    closedSeason: "Closed 1 May – 28 Feb at sea; 1 May – 14 Mar in lakes; 6 May – 31 Mar in Lake Peipsi/Lämmijärv/Pihkva",
+  },
+  perch: {
+    minSize: "21 cm at sea (no general inland minimum)",
+    dailyLimit: "15 kg/day (10 kg in the Pärnu area)",
+    closedSeason: "No general closed season",
+  },
+  zander: {
+    minSize: "51 cm in Lake Võrtsjärv; 46 cm elsewhere",
+    dailyLimit: "5 fish/day (3 in the Pärnu River area)",
+    closedSeason: "Closed 5 May – 10 Jun inland; 15 May – 15 Jul at sea",
+  },
+  trout: {
+    minSize: "50 cm (sea trout)",
+    dailyLimit: "2 fish/day combined with salmon",
+    closedSeason: "Closed 1 Jan – 1 Sep inland (some rivers have December exceptions)",
+  },
+  salmon: {
+    minSize: "60 cm",
+    dailyLimit: "2 fish/day combined with trout",
+    closedSeason: "Closed 1 Jan – 1 Sep inland (some rivers have December exceptions)",
+  },
+  other: {
+    minSize: null,
+    dailyLimit: null,
+    closedSeason: "Rules vary a lot by species — check the official source below.",
+  },
+};
+
 // Researched, real Estonian fishing spots (not a live search — a small curated
 // set compiled from public fishing guides, refreshed occasionally by hand).
 // Coordinates are general area centers, not exact honey-holes.
@@ -194,6 +232,26 @@ function clamp(n, min, max) {
   return Math.max(min, Math.min(max, n));
 }
 
+// ---------- lunar (real astronomy, no API — moon phase from a known reference new moon) ----------
+const SYNODIC_MONTH = 29.53058867;
+
+function moonAge(y, m, d, hh) {
+  const knownNewMoon = Date.UTC(2000, 0, 6, 18, 14, 0);
+  const t = Date.UTC(y, m - 1, d, hh);
+  const diffDays = (t - knownNewMoon) / 86400000;
+  return ((diffDays % SYNODIC_MONTH) + SYNODIC_MONTH) % SYNODIC_MONTH;
+}
+
+function moonBonus(age) {
+  const distToNew = Math.min(age, SYNODIC_MONTH - age);
+  const distToFull = Math.abs(age - SYNODIC_MONTH / 2);
+  const nearNew = distToNew <= distToFull;
+  const dist = Math.min(distToNew, distToFull);
+  if (dist < 1.5) return { bonus: 8, label: nearNew ? "new moon" : "full moon" };
+  if (dist < 3) return { bonus: 4, label: nearNew ? "waning toward new moon" : "waxing toward full moon" };
+  return { bonus: 0, label: null };
+}
+
 // ---------- geocoding ----------
 async function searchLocations(query) {
   const url = `${GEOCODE_URL}?name=${encodeURIComponent(query)}&count=6&language=en&format=json`;
@@ -262,7 +320,16 @@ function scoreHour(idx, hourly, profile, method) {
     score -= 3;
   }
 
-  const hour = parseISOLocal(hourly.time[idx]).hh;
+  const when = parseISOLocal(hourly.time[idx]);
+  const hour = when.hh;
+
+  const age = moonAge(when.y, when.m, when.d, when.hh);
+  const moon = moonBonus(age);
+  if (moon.bonus > 0) {
+    score += moon.bonus;
+    reasons.push(`Moon is near ${moon.label} — historically a stronger feeding trigger.`);
+  }
+
   const isDawn = hour >= 5 && hour <= 8;
   const isDusk = hour >= 18 && hour <= 21;
   const isNight = hour >= 22 || hour <= 4;
@@ -703,6 +770,24 @@ function renderSuggestedSpots() {
 speciesSelect.addEventListener("change", renderSuggestedSpots);
 methodSelect.addEventListener("change", renderSuggestedSpots);
 renderSuggestedSpots();
+
+const regulationsCard = document.getElementById("regulationsCard");
+
+function renderRegulations() {
+  const species = speciesSelect.value;
+  const reg = REGULATIONS[species];
+  const speciesLabel = SPECIES_PROFILES[species].label;
+  regulationsCard.innerHTML = `
+    <h3>⚖️ Rules for ${speciesLabel} (Estonia)</h3>
+    ${reg.minSize ? `<div class="reg-row"><span class="reg-label">Minimum size</span><strong>${escapeHtml(reg.minSize)}</strong></div>` : ""}
+    ${reg.dailyLimit ? `<div class="reg-row"><span class="reg-label">Daily limit</span><strong>${escapeHtml(reg.dailyLimit)}</strong></div>` : ""}
+    <div class="reg-row"><span class="reg-label">Closed season</span><strong>${escapeHtml(reg.closedSeason)}</strong></div>
+    <p class="reg-caveat">Rules vary by water body and change over time — this is a starting point, not legal advice. Always check <a href="${REGULATIONS_SOURCE}" target="_blank" rel="noopener">Keskkonnaamet</a> and buy your fishing card at <a href="https://kalaluba.ee" target="_blank" rel="noopener">kalaluba.ee</a> before heading out.</p>
+  `;
+}
+
+speciesSelect.addEventListener("change", renderRegulations);
+renderRegulations();
 
 function setSelectedLocation(loc) {
   selectedLocation = loc;
