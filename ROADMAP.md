@@ -1,33 +1,64 @@
 # Explr Fshng — backlog / next up
 
-## In progress discussion (2026-08-13)
+## Open items
 
 - **More language options** — UI currently English-only (with Estonian species
   names in parens). Need to decide: full i18n (EN/ET toggle, maybe more) vs.
   just expanding the existing bilingual labels.
 
-- **Cost calculator rework, Splitwise-style.** Current version (see
-  `renderRemoteDetails` in `app.js`) auto-splits every expense evenly across
-  everyone who RSVP'd "accept." User wants something closer to real Splitwise
-  logic instead:
-  - Whoever adds a cost item should specify *who it's split between*
-    (not just an even split across all "accepted" people).
-  - The people included in that split should each get to **confirm** the
-    charge applies to them (not silently included).
+- **Cost calculator rework, Splitwise-style.** Current version auto-splits
+  every expense evenly across everyone who RSVP'd "accept." Wanted instead:
+  - Whoever adds a cost item specifies *who it's split between* (not just
+    an even split across all "accepted" people).
+  - Each included person **confirms** the charge applies to them, rather
+    than being silently included.
   - Likely needs: a `trip_expense_shares` table (expense_id, user_id,
-    confirmed boolean) instead of computing the split purely client-side from
-    RSVP status. Net balance calculation should sum confirmed shares only,
-    with a "pending confirmation" state shown for shares not yet confirmed.
+    confirmed boolean) instead of computing the split purely client-side.
+    Net balance should sum confirmed shares only, with a visible "pending
+    confirmation" state for shares not yet confirmed.
 
-## Already shipped (context for next session)
+- **Photo-GPS-mined spots / live forum-scraped tackle** — explicitly decided
+  NOT to build (no accessible API for either without a much bigger backend +
+  AI investment). Keep extending the curated, sourced datasets instead
+  (`RESEARCHED_SPOTS`, `TACKLE_RECOMMENDATIONS` in `app.js`) if more
+  coverage is wanted.
+
+## Already shipped
+
+- **Core planner**: map-based location picking (click/drag pin, search just
+  jumps the map), fishing method (shore/wading/kayak/boat) with method-aware
+  wind scoring, specific-date or best-day-this-week planning, weather-based
+  recommendation engine with real explained reasons (pressure trend, wind,
+  cloud cover, dawn/dusk, rain, **lunar phase** — new/full moon bonus,
+  verified accurate to <2h against a real sourced full moon date).
+- **Boat launches**: live OpenStreetMap Overpass lookup for slipways/
+  marinas/harbours in the current map view.
+- **Suggested spots**: curated, sourced Estonian fishing locations, filtered
+  by species + method.
+- **Tackle recommendations**: curated, sourced lure suggestions per species,
+  plus a condition-aware color tip derived from the actual computed window.
+- **Fishing regulations**: per-species min size / daily limit / closed
+  season, sourced from Estonia's Environmental Board (Keskkonnaamet), with
+  a "last checked" date and links to the official source + kalaluba.ee.
+  **Kept fresh automatically** — a monthly cloud routine (1st of each
+  month) re-checks the source and updates only what's genuinely changed.
+  Routine: https://claude.ai/code/routines/trig_015HpeMUBCoouLBeU191mbX1
+- **Map pins**: shared crew layer — fishing spots, boat launches, closed
+  roads, bait shops, hazards, other. Local-only when not logged in.
+- **Accounts + crews**: Supabase auth (email/password), invite-code crews,
+  trips sync to Supabase and can be shared with your crew.
+- **Trip collaboration**: RSVP (accept/decline/maybe) with an optional
+  deadline, shared shopping list, cost split (see rework item above).
+
+## Reference
 
 - Web app at `D:\Explr\apps\web`, deployed to
-  https://juulius-sys.github.io/Explr-fshng/ (separate git repo at that path,
-  pushed to github.com/juulius-sys/Explr-fshng).
+  https://juulius-sys.github.io/Explr-fshng/ (separate git repo at that
+  path, pushed to github.com/juulius-sys/Explr-fshng).
 - Supabase backend (juulius-sys's project, URL/key in `supabase-config.js`)
-  handles auth, crews (invite-code based), trips, RSVP, shopping list, and
-  the current (to-be-reworked) cost split.
-- Three SQL files must be run in order on any fresh Supabase project:
-  `supabase-setup.sql` → `supabase-fix-rls.sql` → `supabase-trip-extras.sql`.
+  handles auth, crews, trips, RSVP, shopping list, cost split, map pins.
+- SQL files must be run in order on any fresh Supabase project:
+  `supabase-setup.sql` → `supabase-fix-rls.sql` → `supabase-trip-extras.sql`
+  → `supabase-map-pins.sql`.
 - Local dev: `py -m http.server 8642` from `apps/web`, or use the
   `.claude/launch.json` "explr-web" preview config.
