@@ -173,6 +173,20 @@ input[type="text"], select {
   margin-bottom: 8px;
 }
 
+.reg-species-block {
+  margin-bottom: 8px;
+}
+
+.reg-species-block h4 {
+  margin: 10px 0 2px;
+  font-size: 13px;
+  color: var(--accent-2);
+}
+
+.reg-species-block:first-of-type h4 {
+  margin-top: 0;
+}
+
 .reg-row {
   display: flex;
   justify-content: space-between;
@@ -201,6 +215,57 @@ input[type="text"], select {
   text-align: center;
   text-decoration: none;
   margin-top: 8px;
+}
+
+.species-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.species-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.species-row.selected {
+  border-color: var(--accent);
+  background: rgba(79, 180, 119, 0.12);
+}
+
+.species-row input[type="checkbox"] {
+  width: auto;
+}
+
+.species-row .species-label {
+  flex: 1;
+}
+
+.species-star {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  color: var(--line);
+  padding: 0 2px;
+}
+
+.species-star.favorited {
+  color: var(--warn);
+}
+
+.waze-link {
+  display: inline-block;
+  margin-top: 8px;
+  text-decoration: none;
 }
 
 .pin-form {
@@ -258,6 +323,16 @@ input[type="text"], select {
 
 .tackle-block {
   margin-bottom: 10px;
+}
+
+.tackle-block h4 {
+  margin: 10px 0 2px;
+  font-size: 13px;
+  color: var(--accent-2);
+}
+
+.tackle-block:first-of-type h4 {
+  margin-top: 0;
 }
 
 .tackle-block ul {

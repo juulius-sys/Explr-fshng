@@ -17,6 +17,19 @@ const SPECIES_PROFILES = {
   other: { label: "Other", dawnDusk: 8, cloud: 6, wind: { idealMin: 3, idealMax: 18, penalty: 6 }, pressureFalling: 8, pressureRising: -6 },
 };
 
+// Realistic bycatch — species commonly caught in the same waters/structure
+// while targeting the key species, based on shared habitat overlap.
+const SIDECATCHES = {
+  pike: ["perch", "zander"],
+  zander: ["perch", "pike"],
+  perch: ["zander", "pike"],
+  trout: ["salmon"],
+  salmon: ["trout"],
+  other: [],
+};
+
+const FAVORITE_SPECIES_KEY = "explr_favorite_species";
+
 const METHOD_LABELS = { shore: "Shore", wading: "Wading", kayak: "Kayak", boat: "Boat" };
 const METHOD_PHRASE = { shore: "from shore", wading: "while wading", kayak: "by kayak", boat: "by boat" };
 
@@ -195,9 +208,10 @@ const RESEARCHED_SPOTS = [
   },
 ];
 
-function getSuggestedSpots(species, method) {
+function getSuggestedSpots(speciesList, method) {
   return RESEARCHED_SPOTS.map((spot) => {
-    let score = spot.species.includes(species) ? 2 : species === "other" ? 1 : 0;
+    const speciesMatch = speciesList.some((sp) => spot.species.includes(sp));
+    let score = speciesMatch ? 2 : speciesList.includes("other") ? 1 : 0;
     if (spot.methods.includes(method)) score += 1;
     return { spot, score };
   })
@@ -357,11 +371,21 @@ function scoreHour(idx, hourly, profile, method) {
   return { score: clamp(Math.round(score), 0, 100), reasons };
 }
 
-function buildWindows(hourly, species, method) {
-  const profile = SPECIES_PROFILES[species];
+function scoreHourForSpeciesList(idx, hourly, speciesList, method) {
+  const perSpecies = speciesList.map((key) => ({ key, ...scoreHour(idx, hourly, SPECIES_PROFILES[key], method) }));
+  const avgScore = Math.round(perSpecies.reduce((sum, p) => sum + p.score, 0) / perSpecies.length);
+  const best = perSpecies.reduce((a, b) => (b.score > a.score ? b : a));
+  const reasons = [...best.reasons];
+  if (speciesList.length > 1) {
+    reasons.push(`Best fit for ${SPECIES_PROFILES[best.key].label} among your picks this hour.`);
+  }
+  return { score: avgScore, reasons };
+}
+
+function buildWindows(hourly, speciesList, method) {
   const n = hourly.time.length;
   const hourScores = [];
-  for (let i = 0; i < n; i++) hourScores.push(scoreHour(i, hourly, profile, method));
+  for (let i = 0; i < n; i++) hourScores.push(scoreHourForSpeciesList(i, hourly, speciesList, method));
 
   const windows = [];
   for (let i = 0; i + 2 < n; i++) {
@@ -445,11 +469,14 @@ const searchBtn = document.getElementById("searchBtn");
 const geoBtn = document.getElementById("geoBtn");
 const locationResults = document.getElementById("locationResults");
 const selectedLocationEl = document.getElementById("selectedLocation");
+const selectedLocationTextEl = document.getElementById("selectedLocationText");
+const wazeLinkEl = document.getElementById("wazeLink");
 const methodSelect = document.getElementById("methodSelect");
 const boatLaunchTools = document.getElementById("boatLaunchTools");
 const findLaunchesBtn = document.getElementById("findLaunchesBtn");
 const launchHint = document.getElementById("launchHint");
-const speciesSelect = document.getElementById("speciesSelect");
+const speciesPicker = document.getElementById("speciesPicker");
+const sidecatchNote = document.getElementById("sidecatchNote");
 const daysSelect = document.getElementById("daysSelect");
 const dateInput = document.getElementById("dateInput");
 const modeBtns = document.querySelectorAll(".mode-btn");
@@ -467,6 +494,95 @@ const respondByInput = document.getElementById("respondByInput");
 const saveTripBtn = document.getElementById("saveTripBtn");
 
 let planMode = "date";
+
+// ---------- species picker (multi-select + favorites) ----------
+let selectedSpecies = ["pike"];
+
+function loadFavoriteSpecies() {
+  try {
+    return JSON.parse(localStorage.getItem(FAVORITE_SPECIES_KEY)) || [];
+  } catch {
+    return [];
+  }
+}
+
+function saveFavoriteSpecies(favs) {
+  localStorage.setItem(FAVORITE_SPECIES_KEY, JSON.stringify(favs));
+}
+
+function renderSpeciesPicker() {
+  const favorites = loadFavoriteSpecies();
+  const keys = Object.keys(SPECIES_PROFILES);
+  const sorted = [...keys].sort((a, b) => {
+    const favA = favorites.includes(a) ? 0 : 1;
+    const favB = favorites.includes(b) ? 0 : 1;
+    if (favA !== favB) return favA - favB;
+    return keys.indexOf(a) - keys.indexOf(b);
+  });
+  speciesPicker.innerHTML = sorted
+    .map((key) => {
+      const isFav = favorites.includes(key);
+      const isSelected = selectedSpecies.includes(key);
+      return `
+      <div class="species-row ${isSelected ? "selected" : ""}" data-key="${key}">
+        <button type="button" class="species-star ${isFav ? "favorited" : ""}" data-key="${key}">${isFav ? "★" : "☆"}</button>
+        <input type="checkbox" class="species-check" data-key="${key}" ${isSelected ? "checked" : ""} />
+        <span class="species-label">${SPECIES_PROFILES[key].label}</span>
+      </div>`;
+    })
+    .join("");
+
+  speciesPicker.querySelectorAll(".species-star").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const key = btn.dataset.key;
+      const favs = loadFavoriteSpecies();
+      const idx = favs.indexOf(key);
+      if (idx === -1) favs.push(key);
+      else favs.splice(idx, 1);
+      saveFavoriteSpecies(favs);
+      renderSpeciesPicker();
+    });
+  });
+
+  speciesPicker.querySelectorAll(".species-row").forEach((row) => {
+    row.addEventListener("click", (e) => {
+      if (e.target.classList.contains("species-star")) return;
+      toggleSpecies(row.dataset.key);
+    });
+  });
+}
+
+function toggleSpecies(key) {
+  const idx = selectedSpecies.indexOf(key);
+  if (idx === -1) {
+    selectedSpecies.push(key);
+  } else {
+    if (selectedSpecies.length === 1) return;
+    selectedSpecies.splice(idx, 1);
+  }
+  renderSpeciesPicker();
+  onSpeciesChange();
+}
+
+function renderSidecatchNote() {
+  const sideSet = new Set();
+  selectedSpecies.forEach((key) => {
+    (SIDECATCHES[key] || []).forEach((s) => {
+      if (!selectedSpecies.includes(s)) sideSet.add(s);
+    });
+  });
+  sidecatchNote.textContent = sideSet.size ? `Possible sidecatches: ${[...sideSet].map((s) => SPECIES_PROFILES[s].label).join(", ")}` : "";
+}
+
+function onSpeciesChange() {
+  renderSidecatchNote();
+  renderSuggestedSpots();
+  renderRegulations();
+}
+
+renderSpeciesPicker();
+renderSidecatchNote();
 
 // ---------- date mode setup ----------
 const todayKey = todayStr();
@@ -733,16 +849,16 @@ function renderLaunchPoints(elements) {
 const suggestedSpotsEl = document.getElementById("suggestedSpots");
 
 function renderSuggestedSpots() {
-  const species = speciesSelect.value;
   const method = methodSelect.value;
-  const spots = getSuggestedSpots(species, method);
+  const spots = getSuggestedSpots(selectedSpecies, method);
   if (spots.length === 0) {
     suggestedSpotsEl.innerHTML = "";
     return;
   }
+  const speciesLabels = selectedSpecies.map((s) => SPECIES_PROFILES[s].label).join(" / ");
   suggestedSpotsEl.innerHTML = `
     <div class="card suggested-card">
-      <h3>Worth trying: ${SPECIES_PROFILES[species].label} · ${METHOD_LABELS[method]}</h3>
+      <h3>Worth trying: ${speciesLabels} · ${METHOD_LABELS[method]}</h3>
       ${spots
         .map(
           (spot) => `
@@ -769,7 +885,6 @@ function renderSuggestedSpots() {
   });
 }
 
-speciesSelect.addEventListener("change", renderSuggestedSpots);
 methodSelect.addEventListener("change", renderSuggestedSpots);
 renderSuggestedSpots();
 
@@ -782,14 +897,22 @@ function formatDateNice(dateStr) {
 }
 
 function renderRegulations() {
-  const species = speciesSelect.value;
-  const reg = REGULATIONS[species];
-  const speciesLabel = SPECIES_PROFILES[species].label;
+  const blocks = selectedSpecies
+    .map((species) => {
+      const reg = REGULATIONS[species];
+      const speciesLabel = SPECIES_PROFILES[species].label;
+      return `
+      <div class="reg-species-block">
+        <h4>${speciesLabel}</h4>
+        ${reg.minSize ? `<div class="reg-row"><span class="reg-label">Minimum size</span><strong>${escapeHtml(reg.minSize)}</strong></div>` : ""}
+        ${reg.dailyLimit ? `<div class="reg-row"><span class="reg-label">Daily limit</span><strong>${escapeHtml(reg.dailyLimit)}</strong></div>` : ""}
+        <div class="reg-row"><span class="reg-label">Closed season</span><strong>${escapeHtml(reg.closedSeason)}</strong></div>
+      </div>`;
+    })
+    .join("");
   regulationsCard.innerHTML = `
-    <h3>⚖️ Rules for ${speciesLabel} (Estonia)</h3>
-    ${reg.minSize ? `<div class="reg-row"><span class="reg-label">Minimum size</span><strong>${escapeHtml(reg.minSize)}</strong></div>` : ""}
-    ${reg.dailyLimit ? `<div class="reg-row"><span class="reg-label">Daily limit</span><strong>${escapeHtml(reg.dailyLimit)}</strong></div>` : ""}
-    <div class="reg-row"><span class="reg-label">Closed season</span><strong>${escapeHtml(reg.closedSeason)}</strong></div>
+    <h3>⚖️ Rules (Estonia)</h3>
+    ${blocks}
     <p class="hint">Rules last checked: ${formatDateNice(REGULATIONS_LAST_CHECKED)} · rechecked automatically on the 1st of each month.</p>
     <p class="reg-caveat">Water body and seasonal exceptions apply — this is a starting point, not legal advice.</p>
     <a class="btn btn-secondary reg-official-link" href="${REGULATIONS_SOURCE}" target="_blank" rel="noopener">📖 Check official rules for your exact spot on Keskkonnaamet →</a>
@@ -797,14 +920,14 @@ function renderRegulations() {
   `;
 }
 
-speciesSelect.addEventListener("change", renderRegulations);
 renderRegulations();
 
 function setSelectedLocation(loc) {
   selectedLocation = loc;
   selectedLocationEl.hidden = false;
   const region = [loc.admin1, loc.country].filter(Boolean).join(", ");
-  selectedLocationEl.textContent = `📍 ${loc.name}${region ? " — " + region : ""} (${loc.lat.toFixed(3)}, ${loc.lon.toFixed(3)})`;
+  selectedLocationTextEl.textContent = `📍 ${loc.name}${region ? " — " + region : ""} (${loc.lat.toFixed(3)}, ${loc.lon.toFixed(3)})`;
+  wazeLinkEl.href = `https://waze.com/ul?ll=${loc.lat},${loc.lon}&navigate=yes`;
   findBtn.disabled = false;
   planHint.textContent = "Ready — pick a species and find your window.";
 }
@@ -868,7 +991,7 @@ findBtn.addEventListener("click", async () => {
   findBtn.disabled = true;
   resultsArea.hidden = true;
   try {
-    const species = speciesSelect.value;
+    const species = selectedSpecies;
     const method = methodSelect.value;
     let picked;
 
@@ -915,7 +1038,7 @@ findBtn.addEventListener("click", async () => {
 
 function renderRecommendation(rec) {
   const { top, others, species, method } = rec;
-  const speciesLabel = SPECIES_PROFILES[species].label;
+  const speciesLabel = species.map((s) => SPECIES_PROFILES[s].label).join(" / ");
   const methodLabel = METHOD_LABELS[method];
 
   topWindowEl.innerHTML = `
@@ -941,16 +1064,23 @@ function renderRecommendation(rec) {
   resultsArea.hidden = false;
 }
 
-function renderTackle(species, reasons) {
-  const rec = TACKLE_RECOMMENDATIONS[species];
+function renderTackle(speciesList, reasons) {
+  const blocks = speciesList
+    .map((species) => {
+      const rec = TACKLE_RECOMMENDATIONS[species];
+      return `
+      <div class="tackle-block">
+        <h4>${SPECIES_PROFILES[species].label}</h4>
+        <ul>${rec.lures.map((l) => `<li>${escapeHtml(l)}</li>`).join("")}</ul>
+        <p class="hint">${escapeHtml(rec.tip)}</p>
+        ${rec.source ? `<a class="spot-source" href="${rec.source}" target="_blank" rel="noopener">source</a>` : ""}
+      </div>`;
+    })
+    .join("");
   tackleCard.innerHTML = `
-    <h3>Tackle for ${SPECIES_PROFILES[species].label}</h3>
-    <div class="tackle-block">
-      <ul>${rec.lures.map((l) => `<li>${escapeHtml(l)}</li>`).join("")}</ul>
-    </div>
-    <p class="hint">${escapeHtml(rec.tip)}</p>
+    <h3>Tackle</h3>
+    ${blocks}
     <p class="tackle-tip">${escapeHtml(tackleColorTip(reasons))}</p>
-    ${rec.source ? `<a class="spot-source" href="${rec.source}" target="_blank" rel="noopener">source</a>` : ""}
   `;
 }
 
@@ -1163,7 +1293,8 @@ async function renderTrips() {
     const card = node.querySelector(".trip-card");
     const region = [trip.location.admin1, trip.location.country].filter(Boolean).join(", ");
     node.querySelector(".trip-location").textContent = `${trip.location.name}${region ? " — " + region : ""}`;
-    node.querySelector(".trip-species").textContent = SPECIES_PROFILES[trip.species].label;
+    const tripSpeciesList = Array.isArray(trip.species) ? trip.species : [trip.species];
+    node.querySelector(".trip-species").textContent = tripSpeciesList.map((s) => SPECIES_PROFILES[s].label).join(" / ");
     node.querySelector(".trip-method").textContent = trip.method ? ` · ${METHOD_LABELS[trip.method]}` : "";
     node.querySelector(".trip-owner").textContent = mine ? "" : ` · shared by ${trip.ownerName || "a crewmate"}`;
     node.querySelector(".trip-window").textContent = `${formatWindowLabel(trip.window.start, trip.window.end)} · predicted score ${trip.window.score}/100`;

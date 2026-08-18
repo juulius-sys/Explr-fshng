@@ -26,6 +26,22 @@
       <div class="card form-card">
         <h2>Where and when are you fishing?</h2>
 
+        <label for="methodSelect">How are you fishing?</label>
+        <select id="methodSelect">
+          <option value="shore">Shore</option>
+          <option value="wading">Wading</option>
+          <option value="kayak">Kayak</option>
+          <option value="boat">Boat</option>
+        </select>
+        <div id="boatLaunchTools" hidden>
+          <button id="findLaunchesBtn" type="button" class="btn btn-secondary">⚓ Find boat launches in this map view</button>
+          <p id="launchHint" class="hint"></p>
+        </div>
+
+        <label>Target species (pick one or more — ⭐ a favorite to pin it to the top)</label>
+        <div id="speciesPicker" class="species-picker"></div>
+        <p id="sidecatchNote" class="hint"></p>
+
         <label for="locationInput">Jump the map to an area (optional)</label>
         <div class="row">
           <input id="locationInput" type="text" placeholder="e.g. Tartu, Peipsi rand, Emajõgi..." autocomplete="off" />
@@ -37,7 +53,10 @@
         <label>Pick the exact spot on the map</label>
         <div id="mapPicker"></div>
         <p id="mapHint" class="hint">Click the map to drop a pin, or drag the pin to fine-tune. Search above just helps you get to the right area — the pin is what counts.</p>
-        <div id="selectedLocation" class="selected-location" hidden></div>
+        <div id="selectedLocation" class="selected-location" hidden>
+          <span id="selectedLocationText"></span>
+          <a id="wazeLink" href="#" target="_blank" rel="noopener" class="btn btn-secondary waze-link">🚗 Start driving there (Waze)</a>
+        </div>
 
         <div class="row" style="margin-top: 8px;">
           <button id="pinModeBtn" type="button" class="btn btn-secondary">📌 Add a pin (spot, launch, closed road, bait shop...)</button>
@@ -63,29 +82,6 @@
           <p id="pinFormHint" class="hint"></p>
         </div>
 
-        <label for="methodSelect">How are you fishing?</label>
-        <select id="methodSelect">
-          <option value="shore">Shore</option>
-          <option value="wading">Wading</option>
-          <option value="kayak">Kayak</option>
-          <option value="boat">Boat</option>
-        </select>
-        <div id="boatLaunchTools" hidden>
-          <button id="findLaunchesBtn" type="button" class="btn btn-secondary">⚓ Find boat launches in this map view</button>
-          <p id="launchHint" class="hint"></p>
-        </div>
-
-        <label for="speciesSelect">Target species</label>
-        <select id="speciesSelect">
-          <option value="pike">Pike (Haug)</option>
-          <option value="perch">Perch (Ahven)</option>
-          <option value="zander">Zander / Pikeperch (Koha)</option>
-          <option value="trout">Trout (Forell)</option>
-          <option value="salmon">Salmon (Lõhe)</option>
-          <option value="other">Other / not sure</option>
-        </select>
-
-        <div id="suggestedSpots"></div>
         <div id="regulationsCard" class="card regulations-card"></div>
 
         <label>When are you free?</label>
@@ -125,6 +121,8 @@
         </div>
         <div id="tackleCard" class="card"></div>
       </div>
+
+      <div id="suggestedSpots"></div>
     </section>
 
     <!-- TRIPS TAB -->
