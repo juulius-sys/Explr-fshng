@@ -217,6 +217,62 @@ input[type="text"], select {
   margin-top: 8px;
 }
 
+.share-view {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+}
+
+.share-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+
+#shareMap {
+  flex: 1;
+}
+
+#shareUpdated {
+  padding: 10px 20px;
+  margin: 0;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+}
+
+.live-section .hint {
+  margin-bottom: 8px;
+}
+
+.share-link-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.share-link-row input {
+  flex: 1;
+  font-size: 12.5px;
+}
+
+.live-section .btn {
+  margin-right: 6px;
+  margin-bottom: 6px;
+}
+
+.pin-photo-thumb {
+  max-width: 100%;
+  border-radius: 8px;
+  margin: 6px 0;
+  display: block;
+}
+
 .species-picker {
   display: flex;
   flex-direction: column;

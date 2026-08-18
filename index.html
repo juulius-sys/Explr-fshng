@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Explr Fshng</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="style.css?v=20260816d" />
 </head>
 <body>
   <header class="topbar">
@@ -69,12 +69,17 @@
             <option value="closed_road">🚧 Closed road</option>
             <option value="bait_shop">🏪 Bait shop</option>
             <option value="hazard">⚠️ Hazard</option>
+            <option value="catch">🐟 Catch</option>
+            <option value="pollution">🛢️ Pollution report</option>
+            <option value="environment_change">🌱 Environment change</option>
             <option value="other">📍 Other</option>
           </select>
           <label for="pinLabelInput">Label</label>
           <input id="pinLabelInput" type="text" placeholder="e.g. Good spot under the bridge" />
           <label for="pinNotesInput">Notes (optional)</label>
           <textarea id="pinNotesInput" placeholder="Any details worth knowing..."></textarea>
+          <label for="pinPhotoInput">Photo (optional, log in to attach)</label>
+          <input id="pinPhotoInput" type="file" accept="image/*" capture="environment" />
           <div class="row">
             <button id="savePinBtn" class="btn btn-primary">Save pin</button>
             <button id="cancelPinBtn" type="button" class="btn">Cancel</button>
@@ -236,9 +241,19 @@
     </div>
   </template>
 
+  <!-- Public live-location view for family/safety sharing (opened via ?share=TOKEN, no login) -->
+  <div id="shareView" class="share-view" hidden>
+    <div class="share-header">
+      <strong id="shareTripLabel">Live location</strong>
+      <span id="shareStatus" class="status-badge"></span>
+    </div>
+    <div id="shareMap"></div>
+    <p id="shareUpdated" class="hint"></p>
+  </div>
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <script src="supabase-config.js"></script>
-  <script src="app.js"></script>
+  <script src="supabase-config.js?v=20260816d"></script>
+  <script src="app.js?v=20260816d"></script>
 </body>
 </html>

@@ -104,6 +104,9 @@ const PIN_CATEGORIES = {
   closed_road: { label: "Closed road", icon: "🚧" },
   bait_shop: { label: "Bait shop", icon: "🏪" },
   hazard: { label: "Hazard", icon: "⚠️" },
+  catch: { label: "Catch", icon: "🐟" },
+  pollution: { label: "Pollution report", icon: "🛢️" },
+  environment_change: { label: "Environment change", icon: "🌱" },
   other: { label: "Other", icon: "📍" },
 };
 const PIN_STORAGE_KEY = "explr_pins_v1";
@@ -645,6 +648,7 @@ const pinForm = document.getElementById("pinForm");
 const pinCategorySelect = document.getElementById("pinCategorySelect");
 const pinLabelInput = document.getElementById("pinLabelInput");
 const pinNotesInput = document.getElementById("pinNotesInput");
+const pinPhotoInput = document.getElementById("pinPhotoInput");
 const savePinBtn = document.getElementById("savePinBtn");
 const cancelPinBtn = document.getElementById("cancelPinBtn");
 const pinFormHint = document.getElementById("pinFormHint");
@@ -668,7 +672,9 @@ function startPinAt(lat, lon) {
   pinForm.hidden = false;
   pinLabelInput.value = "";
   pinNotesInput.value = "";
+  pinPhotoInput.value = "";
   pinFormHint.textContent = "";
+  pinPhotoInput.disabled = !currentUser;
 }
 
 cancelPinBtn.addEventListener("click", () => {
@@ -683,6 +689,7 @@ savePinBtn.addEventListener("click", async () => {
     return;
   }
   savePinBtn.disabled = true;
+  pinFormHint.textContent = pinPhotoInput.files[0] ? "Saving pin and uploading photo…" : "Saving pin…";
   const pin = {
     category: pinCategorySelect.value,
     label,
@@ -690,7 +697,7 @@ savePinBtn.addEventListener("click", async () => {
     lat: pendingPinLatLng.lat,
     lon: pendingPinLatLng.lon,
   };
-  const errorMessage = await persistNewPin(pin);
+  const errorMessage = await persistNewPin(pin, pinPhotoInput.files[0] || null);
   savePinBtn.disabled = false;
   if (errorMessage) {
     pinFormHint.textContent = `Couldn't save: ${errorMessage}`;
@@ -716,8 +723,24 @@ function saveLocalPins(pins) {
   localStorage.setItem(PIN_STORAGE_KEY, JSON.stringify(pins));
 }
 
-async function persistNewPin(pin) {
+async function uploadPinPhoto(file) {
+  const path = `${currentCrew.id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+  const { error } = await supabaseClient.storage.from("pin-photos").upload(path, file);
+  if (error) throw error;
+  const { data } = supabaseClient.storage.from("pin-photos").getPublicUrl(path);
+  return data.publicUrl;
+}
+
+async function persistNewPin(pin, photoFile) {
   if (currentUser && currentCrew) {
+    let photoUrl = null;
+    if (photoFile) {
+      try {
+        photoUrl = await uploadPinPhoto(photoFile);
+      } catch (err) {
+        return `photo upload failed (${err.message})`;
+      }
+    }
     const { error } = await supabaseClient.from("map_pins").insert({
       crew_id: currentCrew.id,
       created_by: currentUser.id,
@@ -726,6 +749,7 @@ async function persistNewPin(pin) {
       notes: pin.notes || null,
       lat: pin.lat,
       lon: pin.lon,
+      photo_url: photoUrl,
     });
     return error ? error.message : null;
   }
@@ -758,6 +782,7 @@ async function fetchRemotePins() {
     notes: row.notes,
     lat: row.lat,
     lon: row.lon,
+    photoUrl: row.photo_url,
     createdAt: row.created_at,
     isMine: row.created_by === currentUser.id,
     createdByName: namesById[row.created_by],
@@ -787,6 +812,7 @@ async function loadAndRenderPins() {
         <strong>${cat.icon} ${escapeHtml(pin.label)}</strong><br>
         ${cat.label}
         ${pin.notes ? `<br>${escapeHtml(pin.notes)}` : ""}
+        ${pin.photoUrl ? `<img class="pin-photo-thumb" src="${pin.photoUrl}" alt="${escapeHtml(pin.label)}" />` : ""}
         <div class="pin-popup-meta">${byLine}</div>
         ${mine ? `<button type="button" class="pin-delete-btn" data-id="${pin.id}">Remove</button>` : ""}
       </div>
@@ -1210,6 +1236,8 @@ async function fetchRemoteTrips() {
     shared: row.shared,
     crewId: row.crew_id,
     respondBy: row.respond_by,
+    isActive: row.is_active,
+    shareToken: row.share_token,
   }));
 }
 
@@ -1286,6 +1314,10 @@ async function renderTrips() {
   renderStats(trips);
   tripsList.innerHTML = "";
   tripsEmpty.hidden = trips.length !== 0;
+
+  const myActiveTrip = trips.find((t) => t.isMine !== false && t.isActive);
+  if (myActiveTrip) startLiveTracking(myActiveTrip.id);
+  else stopLiveTracking();
 
   for (const trip of trips) {
     const mine = trip.isMine !== false;
@@ -1463,6 +1495,97 @@ async function loadAndRenderRsvp(trip, deadlineEl, tallyEl, buttons) {
   });
 }
 
+// ---------- active trip: live location sharing (safety) ----------
+let activeWatchId = null;
+let activeTripId = null;
+let lastLiveWriteAt = 0;
+
+function shareUrl(token) {
+  return `${window.location.origin}${window.location.pathname}?share=${token}`;
+}
+
+function startLiveTracking(tripId) {
+  if (activeTripId === tripId && activeWatchId !== null) return;
+  stopLiveTracking();
+  if (!navigator.geolocation) return;
+  activeTripId = tripId;
+  activeWatchId = navigator.geolocation.watchPosition(
+    async (pos) => {
+      const now = Date.now();
+      if (now - lastLiveWriteAt < 20000) return;
+      lastLiveWriteAt = now;
+      await supabaseClient
+        .from("trips")
+        .update({ live_lat: pos.coords.latitude, live_lon: pos.coords.longitude, live_updated_at: new Date().toISOString() })
+        .eq("id", tripId);
+    },
+    (err) => console.error("watchPosition error", err),
+    { enableHighAccuracy: false, maximumAge: 15000, timeout: 20000 }
+  );
+}
+
+function stopLiveTracking() {
+  if (activeWatchId !== null) navigator.geolocation.clearWatch(activeWatchId);
+  activeWatchId = null;
+  activeTripId = null;
+}
+
+function renderLiveSection(container, trip) {
+  const section = document.createElement("div");
+  section.className = "details-section live-section";
+  if (trip.isActive) {
+    section.innerHTML = `
+      <h4>Live sharing (safety)</h4>
+      <p class="hint">Trip is active — sharing your live location with anyone who has this link. Treat it like a password; anyone with it can see where you are.</p>
+      <div class="share-link-row">
+        <input type="text" class="share-link-input" readonly value="${shareUrl(trip.shareToken)}" />
+        <button type="button" class="btn btn-secondary copy-share-btn">Copy link</button>
+      </div>
+      <button type="button" class="btn btn-secondary quick-report-btn">📸 Quick report from here</button>
+      <button type="button" class="btn btn-danger end-trip-btn">⏹ End Trip</button>
+    `;
+    container.appendChild(section);
+    section.querySelector(".copy-share-btn").addEventListener("click", () => {
+      navigator.clipboard.writeText(shareUrl(trip.shareToken)).then(() => {
+        section.querySelector(".copy-share-btn").textContent = "Copied!";
+      });
+    });
+    section.querySelector(".quick-report-btn").addEventListener("click", () => {
+      if (!navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          switchTab("plan");
+          pinMode = true;
+          pinModeBtn.classList.add("active");
+          startPinAt(pos.coords.latitude, pos.coords.longitude);
+        },
+        (err) => {
+          pinFormHint.textContent = "";
+          alert(`Could not get your location: ${err.message}`);
+        }
+      );
+    });
+    section.querySelector(".end-trip-btn").addEventListener("click", async () => {
+      stopLiveTracking();
+      await supabaseClient.from("trips").update({ is_active: false }).eq("id", trip.id);
+      await renderTrips();
+    });
+  } else {
+    section.innerHTML = `
+      <h4>Live sharing (safety)</h4>
+      <p class="hint">Starting shares a private link with whoever you send it to — they see your live location with no account needed. Anyone with the link can view it, so only send it to people you trust.</p>
+      <button type="button" class="btn btn-primary start-trip-btn">▶️ Start Trip</button>
+    `;
+    container.appendChild(section);
+    section.querySelector(".start-trip-btn").addEventListener("click", async () => {
+      const token = crypto.randomUUID();
+      await supabaseClient.from("trips").update({ is_active: true, share_token: token }).eq("id", trip.id);
+      startLiveTracking(trip.id);
+      await renderTrips();
+    });
+  }
+}
+
 async function renderRemoteDetails(container, trip) {
   const node = tripDetailsTemplate.content.cloneNode(true);
   const rsvpSection = node.querySelector(".rsvp-section");
@@ -1480,6 +1603,10 @@ async function renderRemoteDetails(container, trip) {
 
   container.innerHTML = "";
   container.appendChild(node);
+
+  if (trip.isMine !== false) {
+    renderLiveSection(container, trip);
+  }
 
   if (trip.shared) {
     rsvpSection.hidden = false;
@@ -1894,5 +2021,58 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
   btn.addEventListener("click", () => switchTab(btn.dataset.tab));
 });
 
+// ---------- public share view (opened via ?share=TOKEN, no login) ----------
+function formatMinsAgo(iso) {
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return "just now";
+  if (mins === 1) return "1 minute ago";
+  if (mins < 60) return `${mins} minutes ago`;
+  const hours = Math.round(mins / 60);
+  return hours === 1 ? "1 hour ago" : `${hours} hours ago`;
+}
+
+function initShareView(token) {
+  document.getElementById("shareView").hidden = false;
+  const shareMap = L.map("shareMap").setView([58.6, 25.0], 7);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 18,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  }).addTo(shareMap);
+  let shareMarker = null;
+  const labelEl = document.getElementById("shareTripLabel");
+  const statusEl = document.getElementById("shareStatus");
+  const updatedEl = document.getElementById("shareUpdated");
+
+  async function refresh() {
+    const { data, error } = await supabaseClient.rpc("get_shared_trip_location", { token });
+    const row = data && data[0];
+    if (error || !row) {
+      updatedEl.textContent = "This link isn't valid.";
+      return;
+    }
+    labelEl.textContent = row.label || "Live location";
+    statusEl.textContent = row.is_active ? "Active" : "Trip ended";
+    statusEl.classList.toggle("logged", row.is_active);
+    if (row.lat == null || row.lon == null) {
+      updatedEl.textContent = "No location shared yet.";
+      return;
+    }
+    if (shareMarker) shareMarker.setLatLng([row.lat, row.lon]);
+    else {
+      shareMarker = L.marker([row.lat, row.lon]).addTo(shareMap);
+      shareMap.setView([row.lat, row.lon], 13);
+    }
+    updatedEl.textContent = `Last updated ${formatMinsAgo(row.updated_at)}`;
+  }
+
+  refresh();
+  setInterval(refresh, 20000);
+}
+
 // ---------- init ----------
-renderTrips();
+const shareToken = new URLSearchParams(window.location.search).get("share");
+if (shareToken) {
+  initShareView(shareToken);
+} else {
+  renderTrips();
+}
