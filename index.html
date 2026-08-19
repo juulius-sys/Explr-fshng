@@ -244,8 +244,11 @@
   <!-- Public live-location view for family/safety sharing (opened via ?share=TOKEN, no login) -->
   <div id="shareView" class="share-view" hidden>
     <div class="share-header">
-      <strong id="shareTripLabel">Live location</strong>
-      <span id="shareStatus" class="status-badge"></span>
+      <div>
+        <strong id="shareTripLabel">Live location</strong>
+        <span id="shareStatus" class="status-badge"></span>
+      </div>
+      <a id="shareBackLink" href="./" class="btn-link">← Back to app</a>
     </div>
     <div id="shareMap"></div>
     <p id="shareUpdated" class="hint"></p>
